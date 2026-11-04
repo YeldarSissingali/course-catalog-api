@@ -1,4 +1,4 @@
-from models import Course
+from schemas import Course
 
 COURSES: list[Course] = [
     Course(id="modern-frontend", title="Modern Frontend: React & Next.js",
