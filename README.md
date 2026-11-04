@@ -6,7 +6,7 @@ Backend на FastAPI: каталог курсов с фильтрацией, с�
 
 ```bash
 python -m venv .venv
-.venv\Scripts\Activate.ps1        # macOS/Linux: source .venv/bin/activate
+.venv\Scripts\Activate.ps1        
 pip install -r requirements.txt
 fastapi dev main.py
 ```
