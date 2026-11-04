@@ -1,7 +1,9 @@
+from collections.abc import Iterator
+
 from datetime import datetime
 
 from sqlalchemy import DateTime, MetaData, Text, create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from config import settings
 
@@ -30,3 +32,7 @@ engine = create_engine(
 )
 
 SessionLocal = sessionmaker(bind=engine)
+
+def get_db() -> Iterator[Session]:
+    with SessionLocal() as session:
+        yield session
