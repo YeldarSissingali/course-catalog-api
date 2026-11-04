@@ -32,6 +32,8 @@ class Course(Base):
         server_default=text("0")
     )
 
+    level: Mapped[str]
+    
     enrollments: Mapped[list["Enrollment"]] = relationship(
         back_populates="course",
         passive_deletes=True,
