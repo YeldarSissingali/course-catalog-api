@@ -1,4 +1,5 @@
 from typing import Annotated
+from datetime import datetime
 
 import strawberry
 from fastapi import Depends
@@ -8,7 +9,7 @@ from strawberry.fastapi import BaseContext, GraphQLRouter
 from strawberry.types import Info
 
 from db import get_db
-from models import Course
+from models import Course, Enrollment, Student
 
 
 class Context(BaseContext):
@@ -32,6 +33,22 @@ class CourseType:
     is_elective: bool
     likes: int
     level: str
+    enrollments: list["EnrollmentType"]
+
+@strawberry.type(name="Student")
+class StudentType:
+    id: strawberry.ID
+    name: str
+    email: str
+    enrollments: list["EnrollmentType"]
+
+
+@strawberry.type(name="Enrollment")
+class EnrollmentType:
+    id: strawberry.ID
+    enrolled_at: datetime
+    course: CourseType
+    student: StudentType
 
 
 @strawberry.type
@@ -64,7 +81,41 @@ class Query:
     ) -> CourseType | None:
         return info.context.db.get(Course, id)
 
+    @strawberry.field
+    def students(
+        self,
+        info: Info,
+        limit: int = 20,
+    ) -> list[StudentType]:
+        stmt = (
+            select(Student)
+            .order_by(Student.id)
+            .limit(limit)
+        )
 
+        return info.context.db.scalars(stmt).all()
+
+    @strawberry.field
+    def student(
+        self,
+        info: Info,
+        id: strawberry.ID,
+    ) -> StudentType | None:
+        return info.context.db.get(Student, int(id))
+
+    @strawberry.field
+    def enrollments(
+        self,
+        info: Info,
+        limit: int = 20,
+    ) -> list[EnrollmentType]:
+        stmt = (
+            select(Enrollment)
+            .order_by(Enrollment.id)
+            .limit(limit)
+        )
+
+        return info.context.db.scalars(stmt).all()
 schema = strawberry.Schema(query=Query)
 
 graphql_app = GraphQLRouter(
