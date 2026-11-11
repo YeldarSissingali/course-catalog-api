@@ -4,17 +4,51 @@ from typing import Annotated
 from datetime import datetime
 
 import strawberry
+
 from fastapi import Depends
+from graphql import GraphQLError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import BaseContext, GraphQLRouter
 from strawberry.types import Info
+from strawberry.extensions import (
+    DisableIntrospection,
+    MaskErrors,
+    MaxAliasesLimiter,
+    QueryDepthLimiter,
+)
 
+from config import settings
 from db import get_db
 import services
 from models import Course, Enrollment, Student
 
+def check_limit(limit: int) -> int:
+    if not 1 <= limit <= 100:
+        raise GraphQLError(
+            "limit must be between 1 and 100"
+        )
+
+    return limit
+
+
+def parse_id(value: strawberry.ID) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        raise GraphQLError(
+            f"Invalid ID: {value!r}"
+        ) from None
+
+
+def should_mask(error: GraphQLError) -> bool:
+    original = error.original_error
+
+    return (
+        original is not None
+        and not isinstance(original, GraphQLError)
+    )
 
 def batch_loader(
     db: Session,
@@ -137,7 +171,6 @@ class EnrollmentType:
             self.student_id
         )
 
-
 @strawberry.type
 class Query:
     @strawberry.field
@@ -150,7 +183,7 @@ class Query:
         stmt = (
             select(Course)
             .order_by(Course.likes.desc(), Course.id)
-            .limit(limit)
+            .limit(check_limit(limit))
         )
 
         if is_elective is not None:
@@ -177,7 +210,7 @@ class Query:
         stmt = (
             select(Student)
             .order_by(Student.id)
-            .limit(limit)
+            .limit(check_limit(limit))
         )
 
         return info.context.db.scalars(stmt).all()
@@ -188,7 +221,10 @@ class Query:
         info: Info,
         id: strawberry.ID,
     ) -> StudentType | None:
-        return info.context.db.get(Student, int(id))
+        return info.context.db.get(
+            Student,
+            parse_id(id),
+        )
 
     @strawberry.field
     def enrollments(
@@ -199,10 +235,12 @@ class Query:
         stmt = (
             select(Enrollment)
             .order_by(Enrollment.id)
-            .limit(limit)
+            .limit(check_limit(limit))
         )
 
         return info.context.db.scalars(stmt).all()
+
+
 
 @strawberry.type
 class UserError:
@@ -255,7 +293,7 @@ class Mutation:
             enrollment = services.enroll(
                 info.context.db,
                 course_id=input.course_id,
-                student_id=int(input.student_id),
+                student_id=parse_id(input.student_id),
             )
         except services.ServiceError as err:
             return EnrollPayload(
@@ -283,9 +321,20 @@ class Mutation:
         return LikePayload(course=course)
 
 
+extensions = [
+    QueryDepthLimiter(max_depth=5),
+    MaxAliasesLimiter(max_alias_count=10),
+    MaskErrors(should_mask_error=should_mask),
+]
+
+if not settings.graphql_introspection:
+    extensions.append(DisableIntrospection())
+
+
 schema = strawberry.Schema(
     query=Query,
     mutation=Mutation,
+    extensions=extensions,
 )
 
 graphql_app = GraphQLRouter(
