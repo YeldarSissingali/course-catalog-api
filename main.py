@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 import problem
+import counter
 import services
 
 from db import get_db
@@ -25,6 +26,7 @@ from schemas import (
 
 app = FastAPI(title="Course Catalog API")
 problem.install(app)
+counter.install(app)
 
 app.add_middleware(
     CORSMiddleware,
